@@ -33,7 +33,13 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>This app needs location access to show your current position on the map and provide navigation to parking slots.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs location access to provide turn-by-turn navigation even when the app is in the background.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs background location access to continue navigation when the app is not active.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>This app uses device motion to detect your heading direction for accurate navigation.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
