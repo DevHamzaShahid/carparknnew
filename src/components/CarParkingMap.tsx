@@ -29,7 +29,7 @@ import { routingService } from '../services/RoutingService';
 import { POVMarker, ParkingMarker } from '../utils/SvgIcons';
 import NavigationBar from './NavigationBar';
 import ParkingDetailsSheet from './ParkingDetailsSheet';
-import { performanceOptimizer, throttle, MemoryManager } from '../utils/PerformanceOptimizer';
+import { performanceOptimizer, throttle } from '../utils/PerformanceOptimizer';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -143,18 +143,24 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
     orientationService.startListening();
   };
 
-  // Animate camera to location
-  const animateToLocation = useCallback((coordinates: Coordinates, zoom?: number) => {
+  // Animate camera to location with improved north-wise behavior
+  const animateToLocation = useCallback((
+    coordinates: Coordinates, 
+    zoom?: number, 
+    heading?: number,
+    pitch?: number,
+    duration?: number
+  ) => {
     if (!mapRef.current) return;
 
     const camera: Camera = {
       center: coordinates,
       zoom: zoom || cameraState.zoom,
-      heading: cameraState.isUserControlled ? cameraState.bearing : 0,
-      pitch: cameraState.pitch,
+      heading: heading !== undefined ? heading : (cameraState.isUserControlled ? cameraState.bearing : 0),
+      pitch: pitch !== undefined ? pitch : cameraState.pitch,
     };
 
-    mapRef.current.animateCamera(camera, { duration: CAMERA_ANIMATION_DURATION });
+    mapRef.current.animateCamera(camera, { duration: duration || CAMERA_ANIMATION_DURATION });
   }, [cameraState]);
 
   // Handle map interactions
@@ -189,9 +195,15 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
             bearing: 0,
           }));
           
-          // Return to north-up orientation
+          // Smoothly return to north-up orientation with current location
           if (userLocation && mapRef.current) {
-            animateToLocation(userLocation.coordinates);
+            animateToLocation(
+              userLocation.coordinates,
+              16, // Reset to default navigation zoom
+              0,  // North-up
+              0,  // Flat view
+              2000 // Slower transition back to auto mode
+            );
           }
         }, USER_IDLE_TIMEOUT);
       }
@@ -255,7 +267,7 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
     }
   }, [userLocation]);
 
-  // Update navigation progress
+  // Update navigation progress with enhanced camera behavior
   const updateNavigationProgress = useCallback((location: UserLocation) => {
     if (!navigationState.isNavigating || !navigationState.currentRoute) return;
 
@@ -280,25 +292,58 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
       nextTurnDistance: progress.nextTurnDistance,
     }));
 
-    // Check if user is approaching a turn
-    if (progress.nextTurnDistance && progress.nextTurnDistance < TURN_HIGHLIGHT_DISTANCE) {
-      if (!cameraState.isUserControlled && mapRef.current) {
-        // Tilt camera to highlight turn
-        const camera: Camera = {
-          center: location.coordinates,
-          zoom: 18,
-          heading: orientation?.heading || 0,
-          pitch: 45,
-        };
-        mapRef.current.animateCamera(camera, { duration: 500 });
-      }
-    }
-
-    // Auto-center on user location during navigation (if not user controlled)
+    // Enhanced camera behavior during navigation
     if (!cameraState.isUserControlled && mapRef.current) {
-      animateToLocation(location.coordinates, 16);
+      const userSpeed = location.speed || 0;
+      const isMoving = userSpeed > 0.5; // 0.5 m/s threshold
+
+      // Check if user is approaching a turn
+      if (progress.nextTurnDistance && progress.nextTurnDistance < TURN_HIGHLIGHT_DISTANCE) {
+        // Tilt camera to highlight turn with bearing towards turn
+        const currentCoord = location.coordinates;
+        const nextStepCoordinates = route.steps[currentStepIndex + 1]?.coordinates?.[0];
+        
+        let turnBearing = 0;
+        if (nextStepCoordinates) {
+          turnBearing = locationService.calculateBearing(currentCoord, nextStepCoordinates);
+        }
+
+        animateToLocation(
+          location.coordinates,
+          19, // Zoom in for turn
+          turnBearing, // Point towards turn
+          60, // Tilt up for better view
+          800 // Slower animation for turn
+        );
+      } else if (isMoving) {
+        // Normal navigation: follow user with north-up orientation
+        const followZoom = userSpeed > 5 ? 17 : 16; // Zoom out if moving fast
+        animateToLocation(
+          location.coordinates,
+          followZoom,
+          0, // Always north-up
+          0, // Flat view
+          1200 // Smooth follow
+        );
+      } else {
+        // Stationary: maintain current view but center on user
+        animateToLocation(
+          location.coordinates,
+          cameraState.zoom,
+          0, // North-up
+          0, // Flat
+          500 // Quick centering
+        );
+      }
+
+      // Update camera state for bearing tracking
+      setCameraState(prev => ({
+        ...prev,
+        center: location.coordinates,
+        bearing: 0, // Always reset to north during navigation
+      }));
     }
-  }, [navigationState, cameraState, orientation, animateToLocation]);
+  }, [navigationState, cameraState, orientation, animateToLocation, locationService]);
 
   // End navigation
   const handleEndNavigation = useCallback(() => {
@@ -398,23 +443,84 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
           <Marker
             coordinate={userLocation.coordinates}
             anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
+            tracksViewChanges={true} // Enable tracking for rotation updates
+            zIndex={1000} // Ensure it's on top
           >
             <POVMarker
+              size={50} // Larger for better visibility
               heading={orientation?.heading || userLocation.heading || 0}
               showCone={navigationState.isNavigating}
+              color="#007AFF"
             />
           </Marker>
         )}
 
         {/* Navigation Route */}
         {navigationState.isNavigating && navigationState.currentRoute && (
-          <Polyline
-            coordinates={navigationState.currentRoute.coordinates}
-            strokeColor="#007AFF"
-            strokeWidth={4}
-            lineDashPattern={[0]}
-          />
+          <>
+            {/* Route outline for better visibility */}
+            <Polyline
+              coordinates={navigationState.currentRoute.coordinates}
+              strokeColor="#FFFFFF"
+              strokeWidth={8}
+              lineDashPattern={[0]}
+              zIndex={1}
+            />
+            {/* Main route line */}
+            <Polyline
+              coordinates={navigationState.currentRoute.coordinates}
+              strokeColor="#007AFF"
+              strokeWidth={5}
+              lineDashPattern={[0]}
+              zIndex={2}
+            />
+            {/* Direction arrows along the route */}
+            {navigationState.currentRoute.coordinates.length > 2 && 
+             navigationState.currentRoute.coordinates
+               .filter((_, index) => index % 3 === 0) // Show every 3rd point
+               .slice(1, -1) // Skip first and last
+               .map((coord, index) => {
+                 const nextCoord = navigationState.currentRoute!.coordinates[
+                   navigationState.currentRoute!.coordinates.findIndex(c => 
+                     c.latitude === coord.latitude && c.longitude === coord.longitude
+                   ) + 1
+                 ];
+                 if (!nextCoord) return null;
+                 
+                 const bearing = locationService.calculateBearing(coord, nextCoord);
+                 return (
+                   <Marker
+                     key={`arrow-${index}`}
+                     coordinate={coord}
+                     anchor={{ x: 0.5, y: 0.5 }}
+                     tracksViewChanges={false}
+                     zIndex={3}
+                   >
+                     <View style={{
+                       width: 12,
+                       height: 12,
+                       backgroundColor: '#007AFF',
+                       transform: [{ rotate: `${bearing}deg` }],
+                       borderRadius: 2,
+                     }}>
+                       <View style={{
+                         width: 0,
+                         height: 0,
+                         backgroundColor: 'transparent',
+                         borderStyle: 'solid',
+                         borderLeftWidth: 6,
+                         borderRightWidth: 6,
+                         borderBottomWidth: 12,
+                         borderLeftColor: 'transparent',
+                         borderRightColor: 'transparent',
+                         borderBottomColor: '#007AFF',
+                       }} />
+                     </View>
+                   </Marker>
+                 );
+               })
+            }
+          </>
         )}
       </MapView>
 
