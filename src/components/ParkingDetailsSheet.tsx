@@ -7,9 +7,8 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  PanResponder,
 } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { ParkingSlot } from '../types';
 import { getAvailableSpots, getParkingStatus } from '../data/mockParkingSlots';
 import { LocationIcon, ClockIcon } from '../utils/SvgIcons';
@@ -34,7 +33,6 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
   distanceFromUser,
 }) => {
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const lastGestureY = useRef(0);
 
   useEffect(() => {
     if (isVisible && parkingSlot) {
@@ -54,26 +52,29 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
     }
   }, [isVisible, parkingSlot]);
 
-  const handleGestureEvent = (event: PanGestureHandlerGestureEvent) => {
-    const { translationY } = event.nativeEvent;
-    const newY = Math.max(0, translationY);
-    translateY.setValue(newY);
-  };
-
-  const handleGestureEnd = (event: PanGestureHandlerGestureEvent) => {
-    const { translationY, velocityY } = event.nativeEvent;
-    
-    if (translationY > COLLAPSE_THRESHOLD || velocityY > 500) {
-      onClose();
-    } else {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 10,
-      }).start();
-    }
-  };
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newY = Math.max(0, gestureState.dy);
+        translateY.setValue(newY);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > COLLAPSE_THRESHOLD || gestureState.vy > 0.5) {
+          onClose();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 10,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   if (!parkingSlot) {
     return null;
@@ -129,24 +130,16 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
       )}
 
       {/* Bottom Sheet */}
-      <PanGestureHandler
-        onGestureEvent={handleGestureEvent}
-        onHandlerStateChange={(event) => {
-          if (event.nativeEvent.state === State.END) {
-            handleGestureEnd(event);
-          }
-        }}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            transform: [{ translateY }],
+          },
+        ]}
       >
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          {/* Drag Handle */}
-          <View style={styles.dragHandle} />
+        {/* Drag Handle */}
+        <View style={styles.dragHandle} {...panResponder.panHandlers} />
 
           <ScrollView 
             style={styles.content}
@@ -214,9 +207,8 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
                 <Text style={styles.navigateButtonText}>Navigate</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </Animated.View>
-      </PanGestureHandler>
+                     </ScrollView>
+         </Animated.View>
     </>
   );
 };

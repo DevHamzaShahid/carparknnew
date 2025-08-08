@@ -38,50 +38,84 @@ export const POVMarker: React.FC<POVMarkerProps> = ({
     >
       <Defs>
         <RadialGradient id="povGradient" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor={color} stopOpacity="1" />
-          <Stop offset="70%" stopColor={color} stopOpacity="0.8" />
-          <Stop offset="100%" stopColor={color} stopOpacity="0.3" />
+          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+          <Stop offset="60%" stopColor={color} stopOpacity="0.9" />
+          <Stop offset="100%" stopColor={color} stopOpacity="0.7" />
         </RadialGradient>
         <LinearGradient id="coneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop offset="0%" stopColor={color} stopOpacity="0.6" />
           <Stop offset="50%" stopColor={color} stopOpacity="0.3" />
           <Stop offset="100%" stopColor={color} stopOpacity="0.1" />
         </LinearGradient>
+        <RadialGradient id="pulseGradient" cx="50%" cy="50%" r="50%">
+          <Stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <Stop offset="70%" stopColor={color} stopOpacity="0.1" />
+          <Stop offset="100%" stopColor={color} stopOpacity="0" />
+        </RadialGradient>
       </Defs>
+      
+      {/* Pulse effect */}
+      <Circle
+        cx="20"
+        cy="20"
+        r="18"
+        fill="url(#pulseGradient)"
+      />
       
       {/* POV Cone */}
       {showCone && (
         <Path
-          d="M20 8 L10 30 L30 30 Z"
+          d="M20 5 L12 28 L28 28 Z"
           fill="url(#coneGradient)"
           stroke={color}
           strokeWidth="0.5"
-          strokeOpacity="0.7"
+          strokeOpacity="0.8"
         />
       )}
       
-      {/* Main dot */}
+      {/* Outer ring */}
+      <Circle
+        cx="20"
+        cy="20"
+        r="12"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeOpacity="0.6"
+      />
+      
+      {/* Main location dot */}
       <Circle
         cx="20"
         cy="20"
         r="8"
         fill="url(#povGradient)"
         stroke="#FFFFFF"
-        strokeWidth="2"
+        strokeWidth="3"
       />
       
-      {/* Inner dot */}
+      {/* Inner center dot */}
       <Circle
         cx="20"
         cy="20"
-        r="4"
+        r="3"
         fill={color}
       />
       
-      {/* Direction arrow */}
+      {/* Direction torch beam */}
       <Path
-        d="M20 12 L18 16 L22 16 Z"
+        d="M20 10 L17 14 L23 14 Z"
         fill="#FFFFFF"
+        stroke={color}
+        strokeWidth="1"
+      />
+      
+      {/* Direction line */}
+      <Path
+        d="M20 5 L20 15"
+        stroke="#FFFFFF"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </Svg>
   );

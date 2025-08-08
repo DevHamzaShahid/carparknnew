@@ -1,6 +1,5 @@
 import Geolocation from 'react-native-geolocation-service';
-import { PERMISSIONS, request, check, RESULTS } from 'react-native-permissions';
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid, Alert } from 'react-native';
 import { 
   UserLocation, 
   Coordinates, 
@@ -32,34 +31,41 @@ class LocationService {
    */
   async requestLocationPermission(): Promise<LocationPermissionStatus> {
     try {
-      let permission;
-      
       if (Platform.OS === 'ios') {
-        permission = PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
+        // For iOS, just try to get location - permission will be requested automatically
+        try {
+          await this.getCurrentPosition();
+          this.notifyPermissionCallbacks('granted');
+          return 'granted';
+        } catch (error) {
+          this.notifyPermissionCallbacks('denied');
+          return 'denied';
+        }
       } else {
-        permission = PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-      }
+        // For Android, use PermissionsAndroid
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location Permission',
+            message: 'This app needs location access to show your position and provide navigation.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
 
-      const result = await request(permission);
-      
-      let status: LocationPermissionStatus;
-      switch (result) {
-        case RESULTS.GRANTED:
+        let status: LocationPermissionStatus;
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           status = 'granted';
-          break;
-        case RESULTS.DENIED:
+        } else if (granted === PermissionsAndroid.RESULTS.DENIED) {
           status = 'denied';
-          break;
-        case RESULTS.BLOCKED:
-        case RESULTS.UNAVAILABLE:
+        } else {
           status = 'restricted';
-          break;
-        default:
-          status = 'undetermined';
-      }
+        }
 
-      this.notifyPermissionCallbacks(status);
-      return status;
+        this.notifyPermissionCallbacks(status);
+        return status;
+      }
     } catch (error) {
       console.error('Error requesting location permission:', error);
       return 'denied';
@@ -71,26 +77,15 @@ class LocationService {
    */
   async checkLocationPermission(): Promise<LocationPermissionStatus> {
     try {
-      let permission;
-      
       if (Platform.OS === 'ios') {
-        permission = PERMISSIONS.IOS.LOCATION_WHEN_IN_USE;
+        // For iOS, we'll assume undetermined and let the request handle it
+        return 'undetermined';
       } else {
-        permission = PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION;
-      }
-
-      const result = await check(permission);
-      
-      switch (result) {
-        case RESULTS.GRANTED:
-          return 'granted';
-        case RESULTS.DENIED:
-          return 'denied';
-        case RESULTS.BLOCKED:
-        case RESULTS.UNAVAILABLE:
-          return 'restricted';
-        default:
-          return 'undetermined';
+        // For Android, check the permission status
+        const granted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        );
+        return granted ? 'granted' : 'denied';
       }
     } catch (error) {
       console.error('Error checking location permission:', error);
