@@ -29,6 +29,7 @@ import { routingService } from '../services/RoutingService';
 import { POVMarker, ParkingMarker } from '../utils/SvgIcons';
 import NavigationBar from './NavigationBar';
 import ParkingDetailsSheet from './ParkingDetailsSheet';
+import { performanceOptimizer, throttle, MemoryManager } from '../utils/PerformanceOptimizer';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -114,10 +115,12 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
       // Center map on user location
       animateToLocation(currentLocation.coordinates);
 
-      // Start watching location changes
+      // Start watching location changes with performance optimization
       const unsubscribe = locationService.addLocationListener((location) => {
-        setUserLocation(location);
-        updateNavigationProgress(location);
+        if (performanceOptimizer.shouldUpdateLocation(location)) {
+          setUserLocation(location);
+          updateNavigationProgress(location);
+        }
       });
       locationUnsubscribeRef.current = unsubscribe;
 
@@ -128,10 +131,12 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
     }
   };
 
-  // Initialize orientation services
+  // Initialize orientation services with performance optimization
   const initializeOrientation = () => {
     const unsubscribe = orientationService.addOrientationListener((orientationData) => {
-      setOrientation(orientationData);
+      if (performanceOptimizer.shouldUpdateOrientation()) {
+        setOrientation(orientationData);
+      }
     });
     orientationUnsubscribeRef.current = unsubscribe;
     
@@ -161,35 +166,38 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
     }
   }, [isBottomSheetVisible]);
 
-  // Handle user map interactions
-  const handleUserMapInteraction = useCallback((interaction: MapInteraction) => {
-    setCameraState(prev => ({
-      ...prev,
-      isUserControlled: true,
-      lastUserInteraction: Date.now(),
-    }));
+  // Handle user map interactions with throttling
+  const handleUserMapInteraction = useCallback(
+    throttle((interaction: MapInteraction) => {
+      setCameraState(prev => ({
+        ...prev,
+        isUserControlled: true,
+        lastUserInteraction: Date.now(),
+      }));
 
-    // Clear existing timeout
-    if (userIdleTimeoutRef.current) {
-      clearTimeout(userIdleTimeoutRef.current);
-    }
+      // Clear existing timeout
+      if (userIdleTimeoutRef.current) {
+        clearTimeout(userIdleTimeoutRef.current);
+      }
 
-    // Set new timeout to reset to north-up
-    if (navigationState.isNavigating) {
-      userIdleTimeoutRef.current = setTimeout(() => {
-        setCameraState(prev => ({
-          ...prev,
-          isUserControlled: false,
-          bearing: 0,
-        }));
-        
-        // Return to north-up orientation
-        if (userLocation && mapRef.current) {
-          animateToLocation(userLocation.coordinates);
-        }
-      }, USER_IDLE_TIMEOUT);
-    }
-  }, [navigationState.isNavigating, userLocation, animateToLocation]);
+      // Set new timeout to reset to north-up
+      if (navigationState.isNavigating) {
+        userIdleTimeoutRef.current = setTimeout(() => {
+          setCameraState(prev => ({
+            ...prev,
+            isUserControlled: false,
+            bearing: 0,
+          }));
+          
+          // Return to north-up orientation
+          if (userLocation && mapRef.current) {
+            animateToLocation(userLocation.coordinates);
+          }
+        }, USER_IDLE_TIMEOUT);
+      }
+    }, 100), // Throttle to 100ms
+    [navigationState.isNavigating, userLocation, animateToLocation]
+  );
 
   // Handle parking marker press
   const handleParkingMarkerPress = useCallback((parkingSlot: ParkingSlot) => {
