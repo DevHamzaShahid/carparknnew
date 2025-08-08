@@ -54,14 +54,31 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
 
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return Math.abs(gestureState.dy) > 10;
+      },
+      onPanResponderGrant: () => {
+        // User started touching
       },
       onPanResponderMove: (_, gestureState) => {
         const newY = Math.max(0, gestureState.dy);
         translateY.setValue(newY);
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > COLLAPSE_THRESHOLD || gestureState.vy > 0.5) {
+          onClose();
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 10,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: (_, gestureState) => {
+        // Handle termination same as release
         if (gestureState.dy > COLLAPSE_THRESHOLD || gestureState.vy > 0.5) {
           onClose();
         } else {
@@ -138,8 +155,10 @@ export const ParkingDetailsSheet: React.FC<ParkingDetailsSheetProps> = ({
           },
         ]}
       >
-        {/* Drag Handle */}
-        <View style={styles.dragHandle} {...panResponder.panHandlers} />
+        {/* Drag Handle Area */}
+        <View style={styles.dragHandleArea} {...panResponder.panHandlers}>
+          <View style={styles.dragHandle} />
+        </View>
 
           <ScrollView 
             style={styles.content}
@@ -242,14 +261,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
   },
+  dragHandleArea: {
+    width: '100%',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dragHandle: {
     width: 40,
     height: 4,
     backgroundColor: '#E0E0E0',
     borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 16,
   },
   content: {
     flex: 1,
