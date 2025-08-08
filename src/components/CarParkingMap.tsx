@@ -213,6 +213,7 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
 
   // Handle parking marker press
   const handleParkingMarkerPress = useCallback((parkingSlot: ParkingSlot) => {
+    console.log('Parking marker pressed:', parkingSlot.name);
     setSelectedParkingSlot(parkingSlot);
     setIsBottomSheetVisible(true);
   }, []);
@@ -230,6 +231,14 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
         userLocation.coordinates,
         parkingSlot.coordinates
       );
+
+      console.log('Route generated:', {
+        coordinatesCount: route.coordinates.length,
+        distance: route.distance,
+        duration: route.duration,
+        firstCoord: route.coordinates[0],
+        lastCoord: route.coordinates[route.coordinates.length - 1]
+      });
 
       // Calculate ETA
       const eta = new Date();
@@ -421,12 +430,14 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
       >
         {/* Parking Markers */}
         {mockParkingSlots.map((slot) => {
-          const distance = calculateDistanceToSlot(slot);
           return (
             <Marker
               key={slot.id}
               coordinate={slot.coordinates}
-              onPress={() => handleParkingMarkerPress(slot)}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleParkingMarkerPress(slot);
+              }}
               tracksViewChanges={false}
             >
               <ParkingMarker
@@ -456,71 +467,36 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
         )}
 
         {/* Navigation Route */}
-        {navigationState.isNavigating && navigationState.currentRoute && (
+        {navigationState.isNavigating && navigationState.currentRoute && navigationState.currentRoute.coordinates.length > 1 && (
           <>
             {/* Route outline for better visibility */}
             <Polyline
               coordinates={navigationState.currentRoute.coordinates}
               strokeColor="#FFFFFF"
-              strokeWidth={8}
-              lineDashPattern={[0]}
-              zIndex={1}
+              strokeWidth={6}
+              geodesic={true}
             />
             {/* Main route line */}
             <Polyline
               coordinates={navigationState.currentRoute.coordinates}
               strokeColor="#007AFF"
-              strokeWidth={5}
-              lineDashPattern={[0]}
-              zIndex={2}
+              strokeWidth={4}
+              geodesic={true}
             />
-            {/* Direction arrows along the route */}
-            {navigationState.currentRoute.coordinates.length > 2 && 
-             navigationState.currentRoute.coordinates
-               .filter((_, index) => index % 3 === 0) // Show every 3rd point
-               .slice(1, -1) // Skip first and last
-               .map((coord, index) => {
-                 const nextCoord = navigationState.currentRoute!.coordinates[
-                   navigationState.currentRoute!.coordinates.findIndex(c => 
-                     c.latitude === coord.latitude && c.longitude === coord.longitude
-                   ) + 1
-                 ];
-                 if (!nextCoord) return null;
-                 
-                 const bearing = locationService.calculateBearing(coord, nextCoord);
-                 return (
-                   <Marker
-                     key={`arrow-${index}`}
-                     coordinate={coord}
-                     anchor={{ x: 0.5, y: 0.5 }}
-                     tracksViewChanges={false}
-                     zIndex={3}
-                   >
-                     <View style={{
-                       width: 12,
-                       height: 12,
-                       backgroundColor: '#007AFF',
-                       transform: [{ rotate: `${bearing}deg` }],
-                       borderRadius: 2,
-                     }}>
-                       <View style={{
-                         width: 0,
-                         height: 0,
-                         backgroundColor: 'transparent',
-                         borderStyle: 'solid',
-                         borderLeftWidth: 6,
-                         borderRightWidth: 6,
-                         borderBottomWidth: 12,
-                         borderLeftColor: 'transparent',
-                         borderRightColor: 'transparent',
-                         borderBottomColor: '#007AFF',
-                       }} />
-                     </View>
-                   </Marker>
-                 );
-               })
-            }
           </>
+        )}
+
+        {/* Test route - remove this after testing */}
+        {navigationState.isNavigating && (
+          <Polyline
+            coordinates={[
+              { latitude: 31.4659, longitude: 74.2734 },
+              { latitude: 31.4696, longitude: 74.2728 },
+            ]}
+            strokeColor="#FF0000"
+            strokeWidth={3}
+            geodesic={true}
+          />
         )}
       </MapView>
 

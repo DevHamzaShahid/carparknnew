@@ -122,46 +122,46 @@ class RoutingService {
   }
 
   /**
-   * Generate a mock route for development
+   * Generate a mock route using Haversine formula for realistic path
    */
   private getMockRoute(
     origin: Coordinates,
     destination: Coordinates,
     waypoints?: Coordinates[]
   ): NavigationRoute {
-    // Generate a simple route with realistic turns and instructions
     const coordinates: Coordinates[] = [];
     const steps: RouteStep[] = [];
 
-    // Calculate total distance
+    // Calculate total distance using Haversine formula
     const totalDistance = this.calculateDistance(origin, destination);
     const totalDuration = Math.round(totalDistance / 13.89); // Assume 50 km/h average speed
 
-    // Generate intermediate points along the route
-    const numberOfSteps = Math.min(Math.max(3, Math.round(totalDistance / 1000)), 8);
-    
-    for (let i = 0; i <= numberOfSteps; i++) {
-      const ratio = i / numberOfSteps;
-      const lat = origin.latitude + (destination.latitude - origin.latitude) * ratio;
-      const lng = origin.longitude + (destination.longitude - origin.longitude) * ratio;
-      
-      coordinates.push({ latitude: lat, longitude: lng });
+    // Generate realistic route points using road-like paths
+    const routePoints = this.generateHaversineRoute(origin, destination, totalDistance);
+    coordinates.push(...routePoints);
 
-      if (i < numberOfSteps) {
-        const stepDistance = totalDistance / numberOfSteps;
-        const stepDuration = totalDuration / numberOfSteps;
-        
-        steps.push({
-          instruction: this.generateMockInstruction(i, numberOfSteps),
-          distance: stepDistance,
-          duration: stepDuration,
-          coordinates: [{ latitude: lat, longitude: lng }],
-          maneuver: {
-            type: i === 0 ? 'depart' : (i === numberOfSteps - 1 ? 'arrive' : 'turn'),
-            modifier: i % 3 === 0 ? 'left' : (i % 3 === 1 ? 'right' : 'straight'),
-          },
-        });
-      }
+    // Create steps from the generated route
+    const numberOfSteps = Math.min(Math.max(3, Math.round(totalDistance / 800)), 6);
+    const pointsPerStep = Math.floor(routePoints.length / numberOfSteps);
+
+    for (let i = 0; i < numberOfSteps; i++) {
+      const stepStartIndex = i * pointsPerStep;
+      const stepEndIndex = i === numberOfSteps - 1 ? routePoints.length - 1 : (i + 1) * pointsPerStep;
+      const stepCoordinates = routePoints.slice(stepStartIndex, stepEndIndex + 1);
+      
+      const stepDistance = this.calculateStepDistance(stepCoordinates);
+      const stepDuration = (stepDistance / totalDistance) * totalDuration;
+      
+      steps.push({
+        instruction: this.generateMockInstruction(i, numberOfSteps),
+        distance: stepDistance,
+        duration: stepDuration,
+        coordinates: stepCoordinates,
+        maneuver: {
+          type: i === 0 ? 'depart' : (i === numberOfSteps - 1 ? 'arrive' : 'turn'),
+          modifier: i % 3 === 0 ? 'left' : (i % 3 === 1 ? 'right' : 'straight'),
+        },
+      });
     }
 
     return {
@@ -170,6 +170,70 @@ class RoutingService {
       steps,
       coordinates,
     };
+  }
+
+  /**
+   * Generate realistic route points using Haversine-based calculations
+   */
+  private generateHaversineRoute(
+    origin: Coordinates,
+    destination: Coordinates,
+    totalDistance: number
+  ): Coordinates[] {
+    const points: Coordinates[] = [origin];
+    
+    // Calculate the number of intermediate points based on distance
+    const numPoints = Math.max(8, Math.min(20, Math.floor(totalDistance / 200))); // Point every 200m approximately
+    
+    // Generate intermediate points with some road-like curvature
+    for (let i = 1; i < numPoints; i++) {
+      const ratio = i / numPoints;
+      
+      // Base interpolation
+      let lat = origin.latitude + (destination.latitude - origin.latitude) * ratio;
+      let lng = origin.longitude + (destination.longitude - origin.longitude) * ratio;
+      
+      // Add some realistic road-like deviation
+      const deviation = this.calculateRoadDeviation(ratio, totalDistance);
+      lat += deviation.latOffset;
+      lng += deviation.lngOffset;
+      
+      points.push({ latitude: lat, longitude: lng });
+    }
+    
+    points.push(destination);
+    return points;
+  }
+
+  /**
+   * Calculate realistic road deviation for more natural routes
+   */
+  private calculateRoadDeviation(
+    ratio: number,
+    totalDistance: number
+  ): { latOffset: number; lngOffset: number } {
+    // Create gentle curves that simulate real roads
+    const maxDeviation = Math.min(0.001, totalDistance / 100000); // Scale with distance
+    
+    // Use sine waves to create gentle curves
+    const curveA = Math.sin(ratio * Math.PI * 2) * maxDeviation * 0.3;
+    const curveB = Math.sin(ratio * Math.PI * 4 + Math.PI / 4) * maxDeviation * 0.2;
+    
+    return {
+      latOffset: curveA,
+      lngOffset: curveB,
+    };
+  }
+
+  /**
+   * Calculate distance for a series of coordinates
+   */
+  private calculateStepDistance(coordinates: Coordinates[]): number {
+    let totalDistance = 0;
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      totalDistance += this.calculateDistance(coordinates[i], coordinates[i + 1]);
+    }
+    return totalDistance;
   }
 
   /**
