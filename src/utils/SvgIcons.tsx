@@ -126,11 +126,8 @@ export const ParkingMarker: React.FC<IconProps & {
       </Defs>
       
       {/* Shadow */}
-      <Circle
-        cx="20"
-        cy="42"
-        rx="12"
-        ry="4"
+      <Path
+        d="M8 42 Q20 38 32 42 Q20 46 8 42 Z"
         fill="url(#shadowGradient)"
       />
       

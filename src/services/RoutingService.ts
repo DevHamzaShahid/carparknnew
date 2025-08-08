@@ -18,10 +18,10 @@ class RoutingService {
 
   constructor(config: RoutingServiceConfig) {
     this.config = {
-      provider: 'mock',
       language: 'en',
       units: 'metric',
       ...config,
+      provider: config.provider || 'mock',
     };
   }
 

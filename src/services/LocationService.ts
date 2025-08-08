@@ -159,12 +159,10 @@ class LocationService {
       (error) => {
         console.error('Error watching location:', error);
       },
-      {
-        enableHighAccuracy: this.config.enableHighAccuracy,
-        timeout: this.config.timeout,
-        maximumAge: this.config.maximumAge,
-        distanceFilter: this.config.distanceFilter,
-      }
+              {
+          enableHighAccuracy: this.config.enableHighAccuracy,
+          distanceFilter: this.config.distanceFilter,
+        }
     );
   }
 

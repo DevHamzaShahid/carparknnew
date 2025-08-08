@@ -76,7 +76,7 @@ export const CarParkingMap: React.FC<CarParkingMapProps> = ({
     lastUserInteraction: 0,
   });
   
-  const userIdleTimeoutRef = useRef<NodeJS.Timeout>();
+  const userIdleTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const locationUnsubscribeRef = useRef<(() => void) | null>(null);
   const orientationUnsubscribeRef = useRef<(() => void) | null>(null);
 
